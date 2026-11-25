@@ -76,7 +76,7 @@ thead .sticky-n{background:#ECECEF;z-index:3}
 <section id="p-sis"><h1 class="pg">Data Murid</h1><p class="sub" id="sisSub"></p>
   <div class="box"><div class="d-flex flex-wrap gap-2 mb-3"><button class="btn btn-sm btn-red" id="btnTplSis">Download template (No Absen &amp; Nama)</button><button class="btn btn-outline-secondary btn-sm" id="btnImpSis">Impor file template</button><input type="file" id="fileSis" accept=".csv,text/csv" hidden><button class="btn btn-outline-secondary btn-sm" id="btnPaste">Tempel dari Excel</button><button class="btn btn-outline-secondary btn-sm" id="btnAddSis">Tambah murid</button></div>
   <div id="pasteBox" class="mb-3" hidden><textarea id="pasteTxt" class="form-control mb-2" rows="4" placeholder="Tempel dari Excel: No Absen [tab] Nama (atau hanya Nama)"></textarea><button class="btn btn-sm btn-red" id="btnPasteOk">Tambahkan</button></div>
-  <div class="tw"><table class="table align-middle"><thead><tr><th>No</th><th>No Absen</th><th>NISN (opsional)</th><th>Nama Murid</th><th></th></tr></thead><tbody id="sisBody"></tbody></table></div>
+  <div class="tw"><table class="table align-middle"><thead><tr><th>No</th><th>No Absen</th><th>Nama Murid</th><th></th></tr></thead><tbody id="sisBody"></tbody></table></div>
   <button class="btn btn-red mt-3" id="btnSaveSis">Simpan data murid</button></div>
 </section>
 
@@ -92,7 +92,7 @@ thead .sticky-n{background:#ECECEF;z-index:3}
 <section id="p-rekap"><h1 class="pg">Rekap Siap E-Rapor</h1><p class="sub">Salin tabel lalu tempel ke template Excel E-Rapor, atau unduh CSV.</p>
   <div class="box"><div class="d-flex flex-wrap gap-2 align-items-center mb-3"><button class="btn btn-red" id="btnCopy">Salin Tabel</button><button class="btn btn-outline-secondary" id="btnCsv">Download CSV</button>
   <div class="form-check ms-2"><input class="form-check-input" type="checkbox" id="chkHead"><label class="form-check-label" for="chkHead">Sertakan judul kolom</label></div></div>
-  <div class="tw"><table class="table table-sm align-middle"><thead><tr><th>No</th><th>NISN</th><th>Nama Murid</th><th>Nilai Akhir</th><th>Capaian Tertinggi</th><th>Capaian Terendah</th></tr></thead><tbody id="rkBody"></tbody></table></div></div>
+  <div class="tw"><table class="table table-sm align-middle"><thead><tr><th>No Absen</th><th>Nama Murid</th><th>Nilai Akhir</th><th>Capaian Tertinggi</th><th>Capaian Terendah</th></tr></thead><tbody id="rkBody"></tbody></table></div></div>
 </section>
 <footer class="foot">Daftar Nilai PJOK SD · Abri – Guru – PJOK</footer>
 </main>
@@ -145,7 +145,7 @@ async function loadKelas(){
   S.tp=await q(sb.from('tp').select('*').eq('kelas',S.kelas).order('urut'));
   $('brandSub').textContent=(S.prof.nama_sekolah||'')+' · Kelas '+S.kelas;
   $('bwInfo').textContent=`Bobot: Formatif ${bw().f}% · Sumatif ${bw().s}% · SAS ${bw().sas}%`;
-  $('sisSub').textContent=`Murid Kelas ${S.kelas}. Wajib: No Absen dan Nama. NISN opsional (untuk rekap E-Rapor).`;
+  $('sisSub').textContent=`Murid Kelas ${S.kelas}. Isi No Absen dan Nama murid.`;
   $('tpSub').textContent=`TP PJOK Kelas ${S.kelas} (Fase ${fase(S.kelas)}). Tulis dengan kata kerja operasional.`;
   renderSiswa();renderTP();
 }
@@ -183,26 +183,24 @@ $('btnSaveSet').onclick=()=>run(async()=>{
 function renderSiswa(){
   $('sisBody').innerHTML=S.siswa.map((s,i)=>`<tr data-i="${i}"><td>${i+1}</td>
    <td><input class="form-control form-control-sm" data-f="nis" value="${esc(s.nis)}"></td>
-   <td><input class="form-control form-control-sm" data-f="nisn" value="${esc(s.nisn)}"></td>
    <td><input class="form-control form-control-sm" data-f="nama" value="${esc(s.nama)}"></td>
-   <td><button class="btn btn-sm btn-outline-danger" data-del="${i}">Hapus</button></td></tr>`).join('')||'<tr><td colspan="5" class="text-center text-muted py-4">Belum ada murid di kelas ini.</td></tr>';
+   <td><button class="btn btn-sm btn-outline-danger" data-del="${i}">Hapus</button></td></tr>`).join('')||'<tr><td colspan="4" class="text-center text-muted py-4">Belum ada murid di kelas ini.</td></tr>';
 }
 $('sisBody').addEventListener('input',e=>{const f=e.target.dataset.f;if(f)S.siswa[e.target.closest('tr').dataset.i][f]=e.target.value;});
 $('sisBody').addEventListener('click',e=>{const d=e.target.dataset.del;if(d!==undefined){S.siswa.splice(d,1);renderSiswa();}});
-$('btnAddSis').onclick=()=>{S.siswa.push({nis:'',nisn:'',nama:''});renderSiswa();};
+$('btnAddSis').onclick=()=>{S.siswa.push({nis:'',nama:''});renderSiswa();};
 $('btnPaste').onclick=()=>{$('pasteBox').hidden=!$('pasteBox').hidden;};
 $('btnPasteOk').onclick=()=>{
   $('pasteTxt').value.split(/\r?\n/).map(l=>l.split('\t').map(x=>x.trim())).filter(c=>c.join('')).forEach(c=>
-    S.siswa.push(c.length>=3?{nis:c[0],nisn:c[1],nama:c[2]}:c.length===2?(/^\d{1,3}$/.test(c[0])?{nis:c[0],nisn:'',nama:c[1]}:{nis:'',nisn:c[0],nama:c[1]}):{nis:'',nisn:'',nama:c[0]}));
+    S.siswa.push({nis:/^\d{1,3}$/.test(c[0])?c[0]:'',nama:c[c.length-1]}));
   $('pasteTxt').value='';sortSiswa();renderSiswa();toast('Ditambahkan. Klik “Simpan data murid”.');
 };
 $('btnSaveSis').onclick=()=>run(async()=>{
   const keep=S.siswa.filter(s=>s.nama&&s.nama.trim());
-  const nisns=keep.map(s=>s.nisn).filter(Boolean);if(new Set(nisns).size!==nisns.length)return toast('Ada NISN ganda.',true);
   const old=await q(sb.from('siswa').select('id').eq('kelas',S.kelas));
   const gone=old.map(o=>o.id).filter(id=>!keep.some(s=>s.id===id));
   if(gone.length)await q(sb.from('siswa').delete().in('id',gone));
-  const f=s=>({nis:s.nis||'',nisn:s.nisn||'',nama:s.nama.trim(),kelas:S.kelas});
+  const f=s=>({nis:s.nis||'',nama:s.nama.trim(),kelas:S.kelas});
   const upd=keep.filter(s=>s.id).map(s=>({...f(s),id:s.id,user_id:S.user.id}));
   const neu=keep.filter(s=>!s.id).map(f);
   if(upd.length)await q(sb.from('siswa').upsert(upd));
@@ -246,7 +244,7 @@ function importSiswa(text){
   rows.forEach(r=>{const no=(r[0]||'').trim(),nama=(r[1]||'').trim();
     if(!nama){skip++;return;}
     const ada=S.siswa.find(s=>String(s.nama).trim().toLowerCase()===nama.toLowerCase());
-    if(ada){ada.nis=no;upd++;}else{S.siswa.push({nis:no,nisn:'',nama});add++;}});
+    if(ada){ada.nis=no;upd++;}else{S.siswa.push({nis:no,nama});add++;}});
   sortSiswa();renderSiswa();
   toast(`${add} murid baru, ${upd} diperbarui${skip?`, ${skip} baris kosong dilewati`:''}. Klik “Simpan data murid”.`);
 }
@@ -294,7 +292,7 @@ function hitung(r){
 async function fetchRows(){
   const saved=await q(sb.from('nilai').select('*').eq('kelas',S.kelas).eq('tahun_ajaran',S.prof.tahun_ajaran).eq('semester',S.prof.semester));
   const map={};saved.forEach(r=>map[r.siswa_id]=r);
-  return S.siswa.filter(s=>s.id).map(s=>{const v=map[s.id],r={siswa_id:s.id,nisn:s.nisn,nama:s.nama,formatif:v?.formatif||{},sumatif:v?.sumatif||{},sas:v?.sas??'',high:v?.high||'',low:v?.low||'',manual:false};
+  return S.siswa.filter(s=>s.id).map(s=>{const v=map[s.id],r={siswa_id:s.id,nis:s.nis,nama:s.nama,formatif:v?.formatif||{},sumatif:v?.sumatif||{},sas:v?.sas??'',high:v?.high||'',low:v?.low||'',manual:false};
     const c=hitung(r);r.akhir=c.akhir;if(v)r.manual=(r.high!==c.high||r.low!==c.low);else{r.high=c.high;r.low=c.low;}return r;});
 }
 async function loadNilai(){
@@ -329,12 +327,12 @@ $('btnSaveNilai').onclick=()=>run(async()=>{
 });
 
 /* ---------- Rekap ---------- */
-const HEAD=['No','NISN','Nama Murid','Nilai Akhir','Deskripsi Capaian Tertinggi','Deskripsi Capaian Terendah'];
+const HEAD=['No Absen','Nama Murid','Nilai Akhir','Deskripsi Capaian Tertinggi','Deskripsi Capaian Terendah'];
 const flat=s=>String(s??'').replace(/\s+/g,' ').trim();
-const rowArr=(r,i)=>[i+1,r.nisn,r.nama,r.akhir,r.high,r.low];
+const rowArr=(r,i)=>[r.nis||i+1,r.nama,r.akhir,r.high,r.low];
 async function loadRekap(){
   S.rows=await fetchRows();
-  $('rkBody').innerHTML=S.rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.nisn)}</td><td>${esc(r.nama)}</td><td class="fw-bold">${esc(r.akhir)}</td><td>${esc(r.high)}</td><td>${esc(r.low)}</td></tr>`).join('')||'<tr><td colspan="6" class="text-center text-muted py-4">Belum ada data.</td></tr>';
+  $('rkBody').innerHTML=S.rows.map((r,i)=>`<tr><td>${esc(r.nis||i+1)}</td><td>${esc(r.nama)}</td><td class="fw-bold">${esc(r.akhir)}</td><td>${esc(r.high)}</td><td>${esc(r.low)}</td></tr>`).join('')||'<tr><td colspan="5" class="text-center text-muted py-4">Belum ada data.</td></tr>';
 }
 $('btnCopy').onclick=async()=>{
   if(!S.rows.length)return toast('Tidak ada data.',true);
