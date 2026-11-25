@@ -419,10 +419,15 @@ function nilaiDocXml(rows){
   const SW=7000,nb='<w:tcBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/></w:tcBorders>';
   const sc=ps=>`<w:tc><w:tcPr><w:tcW w:w="${SW}" w:type="dxa"/>${nb}</w:tcPr>${ps.join('')}</w:tc>`;
   const imgXml=(rid,id,nm,cx,cy)=>`<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="${nm}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" name="${nm}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>`;
-  const tcx=Math.round(2900*635),tcy=Math.round(tcx*TTD_H/TTD_W),tTw=Math.round(tcy/635)+20;
-  const ttdPara=`<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="0"/></w:pPr><w:r>${imgXml('rIdTtd',2,'TTD dan Cap Kepala Sekolah',tcx,tcy)}</w:r></w:p>`;
-  const gcy=tcy,gcx=Math.round(gcy*TTDG_W/TTDG_H);
-  const gapPara=`<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="0"/></w:pPr><w:r>${imgXml('rIdTtdG',3,'TTD Guru',gcx,gcy)}</w:r></w:p>`;
+  const GAP=1000; /* tinggi ruang tanda tangan (twip) */
+  const anc=(rid,id,nm,cx,cy,offY)=>`<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="${251658240+id}" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="column"><wp:posOffset>${Math.round((SW*635-cx)/2)}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>${Math.round(offY*635)}</wp:posOffset></wp:positionV><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${id}" name="${nm}"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" name="${nm}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>`;
+  const gapP=run=>`<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="0" w:line="${GAP}" w:lineRule="exact"/></w:pPr>${run}</w:p>`;
+  /* kepsek: cap+TTD lebih besar, naik menimpa tulisan jabatan dan turun menyentuh nama */
+  const kW=3900*635,kH=Math.round(kW*TTD_H/TTD_W);
+  const ttdPara=gapP(anc('rIdTtd',2,'TTD dan Cap Kepala Sekolah',kW,kH,-430));
+  /* guru: TTD sedikit menyentuh nama */
+  const gH=1450*635,gW=Math.round(gH*TTDG_W/TTDG_H);
+  const gapPara=gapP(anc('rIdTtdG',3,'TTD Guru',gW,gH,-200));
   const sign=`<w:tbl><w:tblPr><w:tblW w:w="${SW*2}" w:type="dxa"/></w:tblPr><w:tblGrid><w:gridCol w:w="${SW}"/><w:gridCol w:w="${SW}"/></w:tblGrid><w:tr><w:trPr><w:cantSplit/></w:trPr>`+
     sc([para('Mengetahui,',{jc:'center'}),para(KEPSEK.jabatan+',',{jc:'center'}),ttdPara,para(KEPSEK.nama,{b:true,u:true,jc:'center'}),para('NIP '+KEPSEK.nip,{jc:'center'})])+
     sc([para(KEPSEK.tempat+', ..............................',{jc:'center'}),para('Guru PJOK,',{jc:'center'}),gapPara,para(P.guru||'..............................',{b:true,u:true,jc:'center'}),para(P.nip?'NIP '+P.nip:'',{jc:'center'})])+`</w:tr></w:tbl>`;
