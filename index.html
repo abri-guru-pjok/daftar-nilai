@@ -74,9 +74,9 @@ thead .sticky-n{background:#ECECEF;z-index:3}
 </section>
 
 <section id="p-sis"><h1 class="pg">Data Murid</h1><p class="sub" id="sisSub"></p>
-  <div class="box"><div class="d-flex gap-2 mb-3"><button class="btn btn-outline-secondary btn-sm" id="btnPaste">Tempel dari Excel</button><button class="btn btn-outline-secondary btn-sm" id="btnAddSis">Tambah murid</button></div>
-  <div id="pasteBox" class="mb-3" hidden><textarea id="pasteTxt" class="form-control mb-2" rows="4" placeholder="Tempel dari Excel: NIS [tab] NISN [tab] Nama (atau NISN [tab] Nama, atau hanya Nama)"></textarea><button class="btn btn-sm btn-red" id="btnPasteOk">Tambahkan</button></div>
-  <div class="tw"><table class="table align-middle"><thead><tr><th>No</th><th>NIS</th><th>NISN</th><th>Nama Murid</th><th></th></tr></thead><tbody id="sisBody"></tbody></table></div>
+  <div class="box"><div class="d-flex flex-wrap gap-2 mb-3"><button class="btn btn-sm btn-red" id="btnTplSis">Download template (No Absen &amp; Nama)</button><button class="btn btn-outline-secondary btn-sm" id="btnImpSis">Impor file template</button><input type="file" id="fileSis" accept=".csv,text/csv" hidden><button class="btn btn-outline-secondary btn-sm" id="btnPaste">Tempel dari Excel</button><button class="btn btn-outline-secondary btn-sm" id="btnAddSis">Tambah murid</button></div>
+  <div id="pasteBox" class="mb-3" hidden><textarea id="pasteTxt" class="form-control mb-2" rows="4" placeholder="Tempel dari Excel: No Absen [tab] Nama (atau hanya Nama)"></textarea><button class="btn btn-sm btn-red" id="btnPasteOk">Tambahkan</button></div>
+  <div class="tw"><table class="table align-middle"><thead><tr><th>No</th><th>No Absen</th><th>NISN (opsional)</th><th>Nama Murid</th><th></th></tr></thead><tbody id="sisBody"></tbody></table></div>
   <button class="btn btn-red mt-3" id="btnSaveSis">Simpan data murid</button></div>
 </section>
 
@@ -141,11 +141,11 @@ async function boot(){
 }
 $('selKelas').onchange=()=>{S.kelas=+$('selKelas').value;run(async()=>{await loadKelas();go(document.querySelector('.nav-b.on').dataset.p);});};
 async function loadKelas(){
-  S.siswa=await q(sb.from('siswa').select('*').eq('kelas',S.kelas).order('nama'));
+  S.siswa=await q(sb.from('siswa').select('*').eq('kelas',S.kelas));sortSiswa();
   S.tp=await q(sb.from('tp').select('*').eq('kelas',S.kelas).order('urut'));
   $('brandSub').textContent=(S.prof.nama_sekolah||'')+' · Kelas '+S.kelas;
   $('bwInfo').textContent=`Bobot: Formatif ${bw().f}% · Sumatif ${bw().s}% · SAS ${bw().sas}%`;
-  $('sisSub').textContent=`Murid Kelas ${S.kelas}. Nama wajib diisi; NISN disarankan untuk E-Rapor.`;
+  $('sisSub').textContent=`Murid Kelas ${S.kelas}. Wajib: No Absen dan Nama. NISN opsional (untuk rekap E-Rapor).`;
   $('tpSub').textContent=`TP PJOK Kelas ${S.kelas} (Fase ${fase(S.kelas)}). Tulis dengan kata kerja operasional.`;
   renderSiswa();renderTP();
 }
@@ -193,8 +193,8 @@ $('btnAddSis').onclick=()=>{S.siswa.push({nis:'',nisn:'',nama:''});renderSiswa()
 $('btnPaste').onclick=()=>{$('pasteBox').hidden=!$('pasteBox').hidden;};
 $('btnPasteOk').onclick=()=>{
   $('pasteTxt').value.split(/\r?\n/).map(l=>l.split('\t').map(x=>x.trim())).filter(c=>c.join('')).forEach(c=>
-    S.siswa.push(c.length>=3?{nis:c[0],nisn:c[1],nama:c[2]}:c.length===2?{nis:'',nisn:c[0],nama:c[1]}:{nis:'',nisn:'',nama:c[0]}));
-  $('pasteTxt').value='';renderSiswa();toast('Ditambahkan. Klik “Simpan data murid”.');
+    S.siswa.push(c.length>=3?{nis:c[0],nisn:c[1],nama:c[2]}:c.length===2?(/^\d{1,3}$/.test(c[0])?{nis:c[0],nisn:'',nama:c[1]}:{nis:'',nisn:c[0],nama:c[1]}):{nis:'',nisn:'',nama:c[0]}));
+  $('pasteTxt').value='';sortSiswa();renderSiswa();toast('Ditambahkan. Klik “Simpan data murid”.');
 };
 $('btnSaveSis').onclick=()=>run(async()=>{
   const keep=S.siswa.filter(s=>s.nama&&s.nama.trim());
@@ -209,6 +209,47 @@ $('btnSaveSis').onclick=()=>run(async()=>{
   if(neu.length)await q(sb.from('siswa').insert(neu));
   await loadKelas();toast('Data murid tersimpan.');
 });
+
+/* ---------- Template & impor murid (No Absen + Nama) ---------- */
+function sortSiswa(){S.siswa.sort((a,b)=>{const x=parseInt(a.nis)||9999,y=parseInt(b.nis)||9999;return x-y||String(a.nama).localeCompare(String(b.nama));});}
+function dlCSV(name,rows){
+  const qt=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const csv='\uFEFFsep=,\r\n'+rows.map(r=>r.map(qt).join(',')).join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=name;document.body.appendChild(a);a.click();a.remove();
+}
+function parseCSV(t){
+  t=t.replace(/^\uFEFF/,'').replace(/^sep=.?\r?\n/i,'');
+  const first=t.split(/\r?\n/)[0];
+  const d=[',',';','\t'].map(c=>[c,first.split(c).length]).sort((a,b)=>b[1]-a[1])[0][0];
+  const rows=[];let r=[],c='',q=false;
+  for(let i=0;i<t.length;i++){const ch=t[i];
+    if(q){if(ch==='"'){if(t[i+1]==='"'){c+='"';i++;}else q=false;}else c+=ch;}
+    else if(ch==='"')q=true;
+    else if(ch===d){r.push(c);c='';}
+    else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;r.push(c);rows.push(r);r=[];c='';}
+    else c+=ch;}
+  if(c!==''||r.length){r.push(c);rows.push(r);}
+  return rows;
+}
+$('btnTplSis').onclick=()=>{
+  const ex=S.siswa.filter(s=>s.nama).map((s,i)=>[s.nis||i+1,s.nama]);
+  dlCSV(`Template_Murid_Kelas_${S.kelas}.csv`,[['No Absen','Nama']].concat(ex.length?ex:[1,2,3,4,5].map(n=>[n,''])));
+};
+$('btnImpSis').onclick=()=>$('fileSis').click();
+$('fileSis').onchange=e=>{const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();rd.onload=()=>{importSiswa(String(rd.result));e.target.value='';};rd.readAsText(f,'utf-8');};
+function importSiswa(text){
+  const rows=parseCSV(text).filter(r=>r.join('').trim());
+  if(rows.length&&!/^\d+$/.test((rows[0][0]||'').trim()))rows.shift();
+  let add=0,upd=0,skip=0;
+  rows.forEach(r=>{const no=(r[0]||'').trim(),nama=(r[1]||'').trim();
+    if(!nama){skip++;return;}
+    const ada=S.siswa.find(s=>String(s.nama).trim().toLowerCase()===nama.toLowerCase());
+    if(ada){ada.nis=no;upd++;}else{S.siswa.push({nis:no,nisn:'',nama});add++;}});
+  sortSiswa();renderSiswa();
+  toast(`${add} murid baru, ${upd} diperbarui${skip?`, ${skip} baris kosong dilewati`:''}. Klik “Simpan data murid”.`);
+}
 
 /* ---------- TP ---------- */
 const SEED={
