@@ -82,6 +82,7 @@ thead .sticky-n{background:#ECECEF;z-index:3}
 
 <section id="p-tp"><h1 class="pg">Tujuan Pembelajaran PJOK</h1><p class="sub" id="tpSub"></p>
   <div class="box"><div class="d-flex flex-wrap gap-2 mb-3"><button class="btn btn-outline-secondary" id="btnAddTP">Tambah TP</button><button class="btn btn-outline-secondary" id="btnSeed">Isi TP contoh sesuai fase</button><button class="btn btn-red" id="btnSaveTP">Simpan TP</button></div>
+  <div class="d-flex flex-wrap gap-2 mb-3"><button class="btn btn-sm btn-red" id="btnTplTP">Download template TP (Word)</button><button class="btn btn-sm btn-outline-secondary" id="btnImpTP">Impor template TP (Word)</button><input type="file" id="fileTP" accept=".docx" hidden></div>
   <div class="tw"><table class="table align-middle"><thead><tr><th style="width:110px">Kode</th><th>Deskripsi TP</th><th style="width:180px">Kategori</th><th></th></tr></thead><tbody id="tpBody"></tbody></table></div></div>
 </section>
 
@@ -101,6 +102,7 @@ thead .sticky-n{background:#ECECEF;z-index:3}
 <div class="spin" id="spin"><div class="spinner-border text-danger"></div></div>
 <div id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
 /* ====== ISI DUA BARIS INI DARI SUPABASE (Project Settings > API) ====== */
@@ -273,6 +275,54 @@ $('btnSaveTP').onclick=()=>run(async()=>{
   if(list.length)await q(sb.from('tp').insert(list.map((t,i)=>({kelas:S.kelas,urut:i,kode:t.kode.trim(),deskripsi:t.deskripsi.trim(),kategori:t.kategori}))));
   await loadKelas();toast('TP tersimpan.');
 });
+
+/* ---------- Template & impor TP (Word .docx) ---------- */
+const WNS='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const xe=s=>String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+function tplDocXml(kelas,rows){
+  const p=(t,b,sz)=>`<w:p><w:r><w:rPr>${b?'<w:b/>':''}${sz?`<w:sz w:val="${sz}"/>`:''}</w:rPr><w:t xml:space="preserve">${xe(t)}</w:t></w:r></w:p>`;
+  const W=[1300,5600,2700];
+  const cell=(t,i,h)=>`<w:tc><w:tcPr><w:tcW w:w="${W[i]}" w:type="dxa"/>${h?'<w:shd w:val="clear" w:color="auto" w:fill="E7E7EA"/>':''}</w:tcPr>${p(t,h)}</w:tc>`;
+  const tr=(r,h)=>`<w:tr>${r.map((t,i)=>cell(t,i,h)).join('')}</w:tr>`;
+  const bd=['top','left','bottom','right','insideH','insideV'].map(s=>`<w:${s} w:val="single" w:sz="4" w:space="0" w:color="808080"/>`).join('');
+  const tbl=`<w:tbl><w:tblPr><w:tblW w:w="9600" w:type="dxa"/><w:tblBorders>${bd}</w:tblBorders></w:tblPr><w:tblGrid>${W.map(w=>`<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>${tr(['Kode TP','Deskripsi TP','Kategori'],true)}${rows.map(r=>tr(r,false)).join('')}</w:tbl>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="${WNS}"><w:body>${p('Template Tujuan Pembelajaran PJOK - Kelas '+kelas,true,28)}${p('Isi kolom Kode TP dan Deskripsi TP. Kolom Kategori diisi salah satu: Memahami / Mengaplikasi / Merefleksi. Tambah baris jika perlu, lalu simpan sebagai .docx dan impor ke aplikasi.',false,20)}<w:p/>${tbl}<w:p/><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+}
+async function buildDocx(kelas,rows){
+  const z=new JSZip();
+  z.file('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+  z.file('_rels/.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  z.file('word/document.xml',tplDocXml(kelas,rows));
+  return z.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+}
+$('btnTplTP').onclick=()=>run(async()=>{
+  if(typeof JSZip==='undefined')throw new Error('Pustaka Word belum termuat. Periksa internet lalu muat ulang.');
+  const rows=S.tp.length?S.tp.map(t=>[t.kode,t.deskripsi,t.kategori]):[1,2,3,4,5].map(n=>['TP'+n,'','Memahami']);
+  const blob=await buildDocx(S.kelas,rows);
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Template_TP_PJOK_Kelas_${S.kelas}.docx`;
+  document.body.appendChild(a);a.click();a.remove();
+});
+$('btnImpTP').onclick=()=>$('fileTP').click();
+$('fileTP').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;run(()=>importTPDocx(f));};
+async function importTPDocx(file){
+  if(typeof JSZip==='undefined')throw new Error('Pustaka Word belum termuat. Muat ulang halaman.');
+  let zip;try{zip=await JSZip.loadAsync(await file.arrayBuffer());}catch(e){throw new Error('File bukan .docx. Di Word pilih Save As > Word Document (.docx).');}
+  const f=zip.file('word/document.xml');if(!f)throw new Error('File bukan dokumen Word (.docx).');
+  const doc=new DOMParser().parseFromString(await f.async('string'),'application/xml');
+  const txt=tc=>Array.from(tc.getElementsByTagNameNS(WNS,'p')).map(p=>Array.from(p.getElementsByTagNameNS(WNS,'t')).map(t=>t.textContent).join('')).join(' ').replace(/\s+/g,' ').trim();
+  const items=[];let skip=0;
+  Array.from(doc.getElementsByTagNameNS(WNS,'tr')).forEach(tr=>{
+    const c=Array.from(tr.getElementsByTagNameNS(WNS,'tc')).map(txt);
+    if(c.length<2||/^kode/i.test(c[0]))return;
+    if(!c[0]&&!c[1])return;
+    if(!c[0]||!c[1]){skip++;return;}
+    const kat=KAT.find(k=>k.toLowerCase()===(c[2]||'').toLowerCase())||'Memahami';
+    items.push({kode:c[0],deskripsi:c[1],kategori:kat});
+  });
+  if(!items.length)throw new Error('Tidak ada baris TP yang terbaca. Pastikan Kode TP dan Deskripsi TP terisi di dalam tabel.');
+  S.tp=items;renderTP();
+  toast(`${items.length} TP diimpor${skip?`, ${skip} baris dilewati`:''}. Klik “Simpan TP” untuk menyimpan.`);
+}
 
 /* ---------- Nilai ---------- */
 const frag=s=>{s=String(s||'').trim().replace(/[.\s]+$/,'');return s.charAt(0).toLowerCase()+s.slice(1);};
